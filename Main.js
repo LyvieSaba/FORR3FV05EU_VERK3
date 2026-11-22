@@ -20,7 +20,6 @@ const camera = new THREE.PerspectiveCamera(65, innerWidth / innerHeight, 0.1, 10
 
 // One loading manager that every loader uses
 const manager = new THREE.LoadingManager();
-manager.onLoad = () => console.log('Everything is loaded');
 
 const gltfLoader = new GLTFLoader(manager);
 
@@ -176,9 +175,13 @@ function playAnimation(name) {
   currentAction = next;
 }
 
-// Controls
+
+// Controls only work after Byrja is clicked
+let started = false;
 const keys = {};
-addEventListener('keydown', (e) => (keys[e.code] = true));
+addEventListener('keydown', (e) => {
+  if (started) keys[e.code] = true;
+});
 addEventListener('keyup', (e) => (keys[e.code] = false));
 
 const WALK_SPEED = 1.8;
@@ -259,6 +262,56 @@ animate(ceilingLights[1], {
   ease: 'linear',
   loop: true,
   loopDelay: 1800,
+});
+
+// Sound
+const listener = new THREE.AudioListener();
+camera.add(listener);
+const audioLoader = new THREE.AudioLoader(manager);
+
+// Humming lights that you hear everywhere
+const hum = new THREE.Audio(listener);
+audioLoader.load('sounds/hum.wav', (buffer) => {
+  hum.setBuffer(buffer);
+  hum.setLoop(true);
+  hum.setVolume(0.4);
+});
+
+// 3D sound that comes from the Entity and gets louder when you are close
+const drone = new THREE.PositionalAudio(listener);
+entity.add(drone);
+audioLoader.load('sounds/drone.wav', (buffer) => {
+  drone.setBuffer(buffer);
+  drone.setLoop(true);
+  drone.setRefDistance(2);
+  drone.setVolume(1);
+});
+
+// Loading screen
+const loadingScreen = document.getElementById('loading');
+const barFill = document.getElementById('bar-fill');
+const loadingText = document.getElementById('loading-text');
+const startButton = document.getElementById('start-button');
+
+// Show how much has loaded
+manager.onProgress = (url, loaded, total) => {
+  const percent = Math.round((loaded / total) * 100);
+  barFill.style.width = percent + '%';
+  loadingText.textContent = 'Loading... ' + percent + '%';
+};
+
+// Show the Byrja button when everything is loaded
+manager.onLoad = () => {
+  loadingText.textContent = 'Ready';
+  startButton.hidden = false;
+};
+
+// Byrja hides the loading screen and starts the sound
+startButton.addEventListener('click', () => {
+  loadingScreen.classList.add('hide');
+  started = true;
+  hum.play();
+  drone.play();
 });
 
 // Game loop

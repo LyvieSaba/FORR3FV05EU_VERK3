@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { animate } from 'animejs';
+import 'animejs/adapters/three';
 
 // Scene
 const SIZE = 20; // the room is 20 by 20
@@ -19,15 +21,44 @@ const camera = new THREE.PerspectiveCamera(65, innerWidth / innerHeight, 0.1, 10
 // One loading manager that every loader uses
 const manager = new THREE.LoadingManager();
 manager.onLoad = () => console.log('Everything is loaded');
+
 const gltfLoader = new GLTFLoader(manager);
+
+const textureLoader = new THREE.TextureLoader(manager);
+
+// Load a texture and make it repeat
+function loadTexture(file, repeatX, repeatY) {
+  const texture = textureLoader.load(file);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(repeatX, repeatY);
+  return texture;
+}
 
 // Dim light for the whole room
 scene.add(new THREE.AmbientLight(0xfff2b0, 0.4));
 
+// Ceiling lights
+const ceilingLights = [];
+for (const [x, z] of [[-4, -6], [4, 0], [-3, 7]]) {
+  const panel = new THREE.Mesh(
+    new THREE.BoxGeometry(1.2, 0.05, 0.6),
+    new THREE.MeshBasicMaterial({ color: 0xfffbe0 })
+  );
+  panel.position.set(x, HEIGHT - 0.03, z);
+  scene.add(panel);
+
+  const light = new THREE.PointLight(0xfff4c0, 6, 12);
+  light.position.set(x, HEIGHT - 0.3, z);
+  scene.add(light);
+  ceilingLights.push(light);
+}
+
 // Floor
 const floor = new THREE.Mesh(
   new THREE.PlaneGeometry(SIZE, SIZE),
-  new THREE.MeshStandardMaterial({ color: 0x9c8c4a })
+  new THREE.MeshStandardMaterial({ map: loadTexture('textures/carpet.jpg', 10, 10) })
 );
 floor.rotation.x = -Math.PI / 2;
 floor.receiveShadow = true;
@@ -43,8 +74,7 @@ ceiling.position.y = HEIGHT;
 scene.add(ceiling);
 
 // Walls
-const wallMaterial = new THREE.MeshStandardMaterial({ color: 0xd4c26a });
-for (const [x, z, w, d] of [
+const wallMaterial = new THREE.MeshStandardMaterial({ map: loadTexture('textures/wallpaper.jpg', 10, 1.5) });for (const [x, z, w, d] of [
   [0, -SIZE / 2, SIZE, 0.2],
   [0, SIZE / 2, SIZE, 0.2],
   [-SIZE / 2, 0, 0.2, SIZE],
@@ -57,10 +87,10 @@ for (const [x, z, w, d] of [
 }
 
 // Pillars the player can not walk through
+const pillarMaterial = new THREE.MeshStandardMaterial({ map: loadTexture('textures/wallpaper.jpg', 0.5, 1.5) });
 const obstacles = [];
 for (const [x, z] of [[-4, -3], [3, 2], [-2, 5]]) {
-  const pillar = new THREE.Mesh(new THREE.BoxGeometry(1, HEIGHT, 1), wallMaterial);
-  pillar.position.set(x, HEIGHT / 2, z);
+  const pillar = new THREE.Mesh(new THREE.BoxGeometry(1, HEIGHT, 1), pillarMaterial);  pillar.position.set(x, HEIGHT / 2, z);
   pillar.castShadow = true;
   pillar.receiveShadow = true;
   scene.add(pillar);
@@ -215,6 +245,21 @@ function updateCamera(dt) {
   camera.position.lerp(behind, 1 - Math.exp(-5 * dt));
   camera.lookAt(player.position.x, 1.2, player.position.z);
 }
+
+// Anime.js makes one ceiling light flicker on and off
+animate(ceilingLights[1], {
+  intensity: [
+    { to: 0.5, duration: 80 },
+    { to: 6, duration: 60 },
+    { to: 0, duration: 150 },
+    { to: 6, duration: 90 },
+    { to: 2, duration: 70 },
+    { to: 6, duration: 120 },
+  ],
+  ease: 'linear',
+  loop: true,
+  loopDelay: 1800,
+});
 
 // Game loop
 const timer = new THREE.Timer();

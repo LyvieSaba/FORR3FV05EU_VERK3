@@ -67,15 +67,36 @@ for (const [x, z] of [[-4, -3], [3, 2], [-2, 5]]) {
   obstacles.push(new THREE.Box3().setFromObject(pillar));
 }
 
-// The Entity is a black box in the corner for now
-const entity = new THREE.Mesh(
+// The Entity is a group so the body and the eyes move together
+const entity = new THREE.Group();
+
+const entityBody = new THREE.Mesh(
   new THREE.BoxGeometry(0.6, 2.2, 0.3),
   new THREE.MeshStandardMaterial({ color: 0x111111 })
 );
-entity.position.set(8, 1.1, 8);
-entity.castShadow = true;
+entityBody.name = 'body';
+entityBody.position.y = 1.1;
+entityBody.castShadow = true;
+entity.add(entityBody);
+
+// Two glowing eyes are children of the body
+const eyeMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+const leftEye = new THREE.Mesh(new THREE.SphereGeometry(0.05), eyeMaterial);
+leftEye.position.set(-0.12, 0.85, 0.16);
+const rightEye = new THREE.Mesh(new THREE.SphereGeometry(0.05), eyeMaterial);
+rightEye.position.set(0.12, 0.85, 0.16);
+entityBody.add(leftEye, rightEye);
+
+entity.position.set(8, 0, 8);
 scene.add(entity);
-obstacles.push(new THREE.Box3().setFromObject(entity));
+obstacles.push(new THREE.Box3().setFromObject(entityBody));
+
+// Animation clip that makes the Entity sway slowly from side to side
+const swayClip = new THREE.AnimationClip('sway', 4, [
+  new THREE.NumberKeyframeTrack('body.rotation[z]', [0, 2, 4], [-0.1, 0.1, -0.1]),
+]);
+const entityMixer = new THREE.AnimationMixer(entity);
+entityMixer.clipAction(swayClip).play();
 
 // The player is a group so the model and the light move together
 const player = new THREE.Group();
@@ -169,7 +190,7 @@ function updatePlayer(dt) {
   const limit = SIZE / 2 - RADIUS;
   player.position.x = Math.max(-limit, Math.min(limit, player.position.x));
   player.position.z = Math.max(-limit, Math.min(limit, player.position.z));
-  
+
     // Pick the right animation
   if (mixer) {
     if (move === 0) playAnimation('Idle');
@@ -179,11 +200,11 @@ function updatePlayer(dt) {
   }
 }
 
-// The Entity always turns to look at the player
-function updateEntity() {
-  entity.lookAt(player.position.x, entity.position.y, player.position.z);
+// The Entity always turns to look at the player and keeps swaying
+function updateEntity(dt) {
+  entity.lookAt(player.position.x, 0, player.position.z);
+  entityMixer.update(dt);
 }
-
 // Camera stays behind the player
 function updateCamera(dt) {
   const behind = new THREE.Vector3(
@@ -201,7 +222,7 @@ renderer.setAnimationLoop((time) => {
   timer.update(time);
   const dt = Math.min(timer.getDelta(), 0.05);
   updatePlayer(dt);
-  updateEntity();
+  updateEntity(dt);
   updateCamera(dt);
   renderer.render(scene, camera);
 });

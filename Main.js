@@ -246,6 +246,10 @@ function updateCamera(dt) {
     player.position.z - Math.cos(player.rotation.y) * 4
   );
   camera.position.lerp(behind, 1 - Math.exp(-5 * dt));
+  // Keep the camera inside the walls so it never ends up behind one
+  const camLimit = SIZE / 2 - 0.3;
+  camera.position.x = Math.max(-camLimit, Math.min(camLimit, camera.position.x));
+  camera.position.z = Math.max(-camLimit, Math.min(camLimit, camera.position.z));
   camera.lookAt(player.position.x, 1.2, player.position.z);
 }
 

@@ -5,11 +5,16 @@
   <title>Verkefni 3</title>
   <link rel="stylesheet" href="style.css" />
   <script type="importmap">
-    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js" } }
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/"
+      }
+    }
   </script>
 </head>
 <body>
-    <p id="help">W/S = Forward/Backwards A/D = Left/Right</p>
+    <p id="help">W/S = Forward/Backwards A/D = Left/Right Shift = Run</p>
   <script type="module" src="main.js"></script>
 </body>
 </html>

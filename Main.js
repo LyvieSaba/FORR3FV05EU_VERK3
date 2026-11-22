@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 // Scene
 const SIZE = 20; // the room is 20 by 20
@@ -14,6 +15,11 @@ scene.background = new THREE.Color(0x8c7d3c);
 scene.fog = new THREE.FogExp2(0x8c7d3c, 0.08); // yellow fog for the Backrooms feel
 
 const camera = new THREE.PerspectiveCamera(65, innerWidth / innerHeight, 0.1, 100);
+
+// One loading manager that every loader uses
+const manager = new THREE.LoadingManager();
+manager.onLoad = () => console.log('Everything is loaded');
+const gltfLoader = new GLTFLoader(manager);
 
 // Dim light for the whole room
 scene.add(new THREE.AmbientLight(0xfff2b0, 0.4));
@@ -71,27 +77,61 @@ entity.castShadow = true;
 scene.add(entity);
 obstacles.push(new THREE.Box3().setFromObject(entity));
 
-// The player is a box for now
-const player = new THREE.Mesh(
-  new THREE.BoxGeometry(0.6, 1.7, 0.6),
-  new THREE.MeshStandardMaterial({ color: 0x3366ff })
-);
-player.position.set(0, 0.85, -7);
-player.castShadow = true;
+// The player is a group so the model and the light move together
+const player = new THREE.Group();
+player.position.set(0, 0, -7);
 scene.add(player);
 
 // Light attached to the player so it moves with him
 const playerLight = new THREE.PointLight(0xffe9a0, 8, 8);
-playerLight.position.set(0.4, 0.5, 0.3);
+playerLight.position.set(0.4, 1.3, 0.3);
 playerLight.castShadow = true;
 player.add(playerLight);
+
+// Load the character
+let mixer;
+const actions = {};
+let currentAction;
+
+gltfLoader.load('models/Soldier.glb', (gltf) => {
+  const model = gltf.scene;
+  model.rotation.y = Math.PI; // turn the model so it faces forward
+
+  // Scale the model so it is about 1.7 meters tall
+  const height = new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3()).y;
+  model.scale.multiplyScalar(1.7 / height);
+
+  model.traverse((child) => {
+    if (child.isMesh) child.castShadow = true;
+  });
+  player.add(model);
+
+  // Get the animations from the model
+  mixer = new THREE.AnimationMixer(model);
+  for (const clip of gltf.animations) {
+    actions[clip.name] = mixer.clipAction(clip);
+  }
+  currentAction = actions.Idle;
+  currentAction.play();
+});
+
+// Smoothly switch from the current animation to a new one
+function playAnimation(name) {
+  const next = actions[name];
+  if (next === currentAction) return;
+  next.reset();
+  next.play();
+  currentAction.crossFadeTo(next, 0.3, false);
+  currentAction = next;
+}
 
 // Controls
 const keys = {};
 addEventListener('keydown', (e) => (keys[e.code] = true));
 addEventListener('keyup', (e) => (keys[e.code] = false));
 
-const WALK_SPEED = 3;
+const WALK_SPEED = 1.8;
+const RUN_SPEED = 4.5;
 const TURN_SPEED = 2.5;
 const RADIUS = 0.4; // the player is treated as a circle
 
@@ -114,8 +154,12 @@ function updatePlayer(dt) {
   if (keys.KeyW) move = 1;
   if (keys.KeyS) move = -1;
 
-  const nx = player.position.x + Math.sin(player.rotation.y) * move * WALK_SPEED * dt;
-  const nz = player.position.z + Math.cos(player.rotation.y) * move * WALK_SPEED * dt;
+  // Hold Shift to run
+  const running = keys.ShiftLeft && move !== 0;
+  const speed = running ? RUN_SPEED : WALK_SPEED;
+
+  const nx = player.position.x + Math.sin(player.rotation.y) * move * speed * dt;
+  const nz = player.position.z + Math.cos(player.rotation.y) * move * speed * dt;
 
   // Only move if the new spot is not inside an obstacle
   if (!hitsSomething(nx, player.position.z)) player.position.x = nx;
@@ -125,6 +169,14 @@ function updatePlayer(dt) {
   const limit = SIZE / 2 - RADIUS;
   player.position.x = Math.max(-limit, Math.min(limit, player.position.x));
   player.position.z = Math.max(-limit, Math.min(limit, player.position.z));
+  
+    // Pick the right animation
+  if (mixer) {
+    if (move === 0) playAnimation('Idle');
+    else if (running) playAnimation('Run');
+    else playAnimation('Walk');
+    mixer.update(dt);
+  }
 }
 
 // The Entity always turns to look at the player
